@@ -23,69 +23,11 @@ typedef uint64_t uint64;
 typedef float real32;
 typedef double real64;
 
-#define BUFFER_SIZE_BYTES 4048
-
-#define SET_BACKGROUND_GREEN "\x1b[42m"
-#define SET_DEFAULT_ATTRIBUTES "\x1b[0m"
-
-struct output_buffer
-{
-    int32 windowWidth;
-    int32 windowHeight;
-    int32 bufferSize;
-    int32 bytesWritten;
-    char *buffer;
-};
-
-struct box
-{
-    union {
-        struct
-        {
-            int32 length;
-            int32 width;
-            int32 height;
-        };
-        int32 dimensions[3];
-    };
-    box* next;
-};
-
-struct game_state
-{
-    int32 selectedListLine;
-    int32 selectedNewBox;
-    int32 selectedDimension;
-
-    box boxes[12];
-    box *boxHead;
-    int32 boxCount;
-    int32 maxBoxCount = 12;
-};
-
-struct point
-{
-    real32 x;
-    real32 y;
-};
-
-struct line
-{
-    real32 m;
-    real32 b;
-    int32 isVertical;
-};
-
-struct square
-{
-    union {
-        point points[4];
-        struct
-        {
-            point ul;
-            point ur;
-            point ll;
-            point lr;
-        };
-    };
-};
+typedef struct offscreen_buffer{
+    void *memory;
+    int32 width;
+    int32 height;
+    int32 bytesPerPixel;
+    int32 stride;
+    
+}offscreen_buffer;

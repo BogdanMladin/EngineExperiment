@@ -1,11 +1,17 @@
 
 // clang-format off
+#include <windows.h>
+#include <stdio.h>
+#include <synchapi.h>
+#include <profileapi.h>
+#include <timeapi.h>
+#include <memoryapi.h>
 #include <urlmon.h>
 #include <windef.h>
-#include <windows.h>
 #include <errhandlingapi.h>
 #include <minwindef.h>
 #include <wingdi.h>
+#include <winnt.h>
 #include <winuser.h>
 #include <debugapi.h>
 #include <cassert>
@@ -13,7 +19,86 @@
 
 #include "BoxArranger.cpp"
 
-// open a window
+global_variable int32 globalRunning;
+
+typedef struct win32_offscreeen_buffer
+{
+    BITMAPINFO info;
+    void *memory;
+    int32 width;
+    int32 height;
+    int32 bytesPerPixel;
+
+} win32_offscreeen_buffer;
+global_variable win32_offscreeen_buffer globalBackBuffer;
+
+internal void Win32ColorWholebuffer(win32_offscreeen_buffer *buffer,
+                                    int32 red,
+                                    int32 green,
+                                    int32 blue)
+{
+    int32 pixelCount = buffer->width * buffer->height;
+    RGBQUAD *pixelByte = (RGBQUAD *)buffer->memory;
+    for (int i = 0; i < pixelCount; i++)
+    {
+        pixelByte->rgbRed = red;
+        pixelByte->rgbGreen = green;
+        pixelByte->rgbBlue = blue;
+        pixelByte++;
+    }
+}
+
+internal void Win32DisplayBufferInWindow(HDC hdc, win32_offscreeen_buffer *buffer)
+{
+
+    int hello = StretchDIBits(hdc,
+                              0,              // [in] int xDest,
+                              0,              // [in] int yDest,
+                              buffer->width,  // [in] int DestWidth,
+                              buffer->height, // [in] int DestHeight,
+                              0,              // [in] int xSrc,
+                              0,              // [in] int ySrc,
+                              buffer->width,  // [in] int SrcWidth,
+                              buffer->height, // [in] int SrcHeight,
+                              buffer->memory, // [in] const VOID *lpBits,
+                              &buffer->info,  // [in] const BITMAPINFO *lpbmi,
+                              DIB_RGB_COLORS, // [in] UINT iUsage,
+                              SRCCOPY);       // [in] DWORD rop
+}
+
+internal void Win32ResizeDIBSection(win32_offscreeen_buffer *buffer, int32 width, int32 height)
+{
+
+    if (buffer->memory)
+    {
+        VirtualFree(buffer->memory, 0, MEM_RELEASE);
+    }
+
+    BITMAPINFOHEADER *bmiHeader = &buffer->info.bmiHeader;
+    bmiHeader->biSize = sizeof(*bmiHeader);
+    bmiHeader->biWidth = width;
+    bmiHeader->biHeight = -height;
+    bmiHeader->biPlanes = 1; // must be set to 1
+    bmiHeader->biBitCount = 32;
+    bmiHeader->biCompression = BI_RGB;
+    bmiHeader->biSizeImage = 0;
+    bmiHeader->biXPelsPerMeter = 0;
+    bmiHeader->biYPelsPerMeter = 0;
+    bmiHeader->biClrUsed = 0;
+    bmiHeader->biClrImportant = 0;
+
+    buffer->width = width;
+    buffer->height = height;
+    buffer->bytesPerPixel = 4;
+
+    // TODO switch this to another type of memory allocation
+
+    int32 sizeInBytes = width * height * buffer->bytesPerPixel;
+    buffer->memory = VirtualAlloc(0,                        // [ in, optional ] LPVOID lpAddress,
+                                  sizeInBytes,              // [in] SIZE_T dwSize,
+                                  MEM_RESERVE | MEM_COMMIT, // [in] DWORD flAllocationType,
+                                  PAGE_READWRITE);          // [in] DWORD flProtect);
+}
 
 LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -25,67 +110,19 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
 
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(windowHandle, &ps);
-        
 
         // All painting occurs here, between BeginPaint and EndPaint.
 
-        FillRect(hdc, &ps.rcPaint, (HBRUSH)(COLOR_WINDOW + 1));
-        BITMAPINFOHEADER bmiheader = {};
-        bmiheader.biSize = sizeof(BITMAPINFOHEADER);
-        bmiheader.biWidth = 10;
-        bmiheader.biHeight = -10;
-        bmiheader.biPlanes = 1; // must be set to 1
-        bmiheader.biBitCount = 32;
-        bmiheader.biCompression = BI_BITFIELDS;
-        bmiheader.biSizeImage = 0;
-        bmiheader.biXPelsPerMeter = 0;
-        bmiheader.biYPelsPerMeter = 0;
-        bmiheader.biClrUsed = 0;
-        bmiheader.biClrImportant = 0;
+        FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
-        BYTE byteOfOnes = 0;
-        byteOfOnes = ~byteOfOnes;
 
-        RGBQUAD bmiColors[3] = {};
-        bmiColors[0].rgbRed = byteOfOnes;
-        bmiColors[1].rgbBlue = byteOfOnes;
-        bmiColors[2].rgbGreen = byteOfOnes;
-
-        BITMAPINFO bitmapinfo = {};
-        bitmapinfo.bmiHeader = bmiheader;
-        bitmapinfo.bmiColors[0].rgbRed = byteOfOnes;
-        bitmapinfo.bmiColors[1].rgbGreen = byteOfOnes;
-        bitmapinfo.bmiColors[2].rgbBlue = byteOfOnes;
-
-        void *bits = 0;
-
-        CreateDIBSection(hdc, &bitmapinfo, DIB_RGB_COLORS, &bits, 0, 0);
-        RGBQUAD *morebits = (RGBQUAD *)bits;
-        int stride = 10;
-        morebits[0].rgbBlue = byteOfOnes;
-        morebits[1].rgbRed = byteOfOnes;
-        morebits[2].rgbGreen = byteOfOnes;
-
-        int hello = StretchDIBits(hdc,
-                                  0,              // [in] int xDest,
-                                  0,              // [in] int yDest,
-                                  10,             // [in] int DestWidth,
-                                  10,             // [in] int DestHeight,
-                                  0,              // [in] int xSrc,
-                                  0,              // [in] int ySrc,
-                                  10,             // [in] int SrcWidth,
-                                  10,             // [in] int SrcHeight,
-                                  morebits,       // [in] const VOID *lpBits,
-                                  &bitmapinfo,    // [in] const BITMAPINFO *lpbmi,
-                                  DIB_RGB_COLORS, // [in] UINT iUsage,
-                                  SRCCOPY);       // [in] DWORD rop
+        Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
 
         EndPaint(windowHandle, &ps);
         break;
     }
     case WM_CLOSE:
-        DestroyWindow(windowHandle);
-        PostQuitMessage(0);
+        globalRunning = false;
 
     default:
         result = DefWindowProc(windowHandle, message, wParam, lParam);
@@ -97,6 +134,8 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 
+    // open a window
+
     WNDCLASSA windowClass = {};
 
     windowClass.style = CS_HREDRAW | CS_VREDRAW;
@@ -105,6 +144,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     windowClass.lpszClassName = "WindowClassName";
 
     int hello = RegisterClass(&windowClass);
+
+    // Initialize BackBuffer
+    Win32ResizeDIBSection(&globalBackBuffer, 1000, 600);
 
     HWND windowHandle = CreateWindowExA(0,
                                         windowClass.lpszClassName,
@@ -118,33 +160,51 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                                         0,
                                         hInstance,
                                         0);
-    if (windowHandle == 0)
+    assert(windowHandle);
+
+    assert(timeBeginPeriod(1) == TIMERR_NOERROR);
+
+    LARGE_INTEGER performanceFrequency;
+    QueryPerformanceFrequency(&performanceFrequency); // given in ticks per second
+    LARGE_INTEGER startingTime;
+    LARGE_INTEGER endingTime;
+    LARGE_INTEGER elapsedMiliseconds;
+
+    int32 targetFPS = 60;
+    globalRunning = 1;
+    int32 R = 0;
+    while (globalRunning)
     {
-        assert(false);
-    }
+        QueryPerformanceCounter(&startingTime);
 
-    MSG message;
-    BOOL getMessageReturn;
-
-    int running = 1;
-    while (running)
-    {
-
-        getMessageReturn = GetMessage(&message, NULL, 0, 0);
-        if (getMessageReturn == 0)
+        MSG message;
+        BOOL getMessageReturn;
+        while (PeekMessage(&message, windowHandle, 0, 0, PM_REMOVE))
         {
-            running = false;
+                TranslateMessage(&message);
+                DispatchMessage(&message); // this internally calls the correct window procedure
         }
 
-        if (getMessageReturn == -1)
-        {
-            int i = GetLastError();
-            return i;
-        }
-        else
-        {
-            TranslateMessage(&message);
-            DispatchMessage(&message); // this internally calls the correct window procedure
-        }
+        Win32ColorWholebuffer(&globalBackBuffer, R, R, R);
+        ++R %= 256;
+        HDC hdc = GetDC(windowHandle);
+        Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
+        ReleaseDC(windowHandle, hdc);
+
+        QueryPerformanceCounter(&endingTime);
+
+        elapsedMiliseconds.QuadPart *=
+            1000; // to turn it to miliseconds, done before to preserve accuracy
+        elapsedMiliseconds.QuadPart =
+            (endingTime.QuadPart - startingTime.QuadPart) / performanceFrequency.QuadPart;
+
+        real32 msPerFrame = (1.0f / (real32)targetFPS) * 1000.0f;
+        int32 msToSleep = RoundReal32ToInt32(msPerFrame - elapsedMiliseconds.QuadPart);
+
+        char textBuffer[255];
+        sprintf_s(textBuffer, sizeof(textBuffer), "msToSleep : %d\n", msToSleep);
+        OutputDebugString(textBuffer);
+
+        Sleep(msToSleep);
     }
 };
