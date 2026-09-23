@@ -1,4 +1,7 @@
 
+// TODO: Figure out why it stops working when I grab the window
+//  and why it crashes if I hold it grabbed for too long
+
 // clang-format off
 #include <windows.h>
 #include <stdio.h>
@@ -115,7 +118,6 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
 
         FillRect(hdc, &ps.rcPaint, (HBRUSH)GetStockObject(BLACK_BRUSH));
 
-
         Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
 
         EndPaint(windowHandle, &ps);
@@ -173,6 +175,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     int32 targetFPS = 60;
     globalRunning = 1;
     int32 R = 0;
+    int64 frameCount = 0;
     while (globalRunning)
     {
         QueryPerformanceCounter(&startingTime);
@@ -181,12 +184,21 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         BOOL getMessageReturn;
         while (PeekMessage(&message, windowHandle, 0, 0, PM_REMOVE))
         {
-                TranslateMessage(&message);
-                DispatchMessage(&message); // this internally calls the correct window procedure
+            TranslateMessage(&message);
+            DispatchMessage(&message); // this internally calls the correct window procedure
         }
 
-        Win32ColorWholebuffer(&globalBackBuffer, R, R, R);
-        ++R %= 256;
+        offscreen_buffer offscreenBuffer = {};
+        offscreenBuffer.width = globalBackBuffer.width;
+        offscreenBuffer.height = globalBackBuffer.height;
+        offscreenBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
+        offscreenBuffer.memory = globalBackBuffer.memory;
+        offscreenBuffer.stride =
+            offscreenBuffer.width * offscreenBuffer.height * offscreenBuffer.bytesPerPixel;
+
+        UpdateAndRender(&offscreenBuffer, frameCount);
+        frameCount++;
+
         HDC hdc = GetDC(windowHandle);
         Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
         ReleaseDC(windowHandle, hdc);
