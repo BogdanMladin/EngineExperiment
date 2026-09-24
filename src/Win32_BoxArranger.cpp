@@ -148,19 +148,17 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
 int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nShowCmd)
 {
 
-    // open a window
+    // Initialize BackBuffer
+    Win32ResizeDIBSection(&globalBackBuffer, 1000, 600);
 
     WNDCLASSA windowClass = {};
-
     windowClass.style = CS_HREDRAW | CS_VREDRAW;
     windowClass.lpfnWndProc = WindowProcedure;
     windowClass.hInstance = hInstance;
     windowClass.lpszClassName = "WindowClassName";
 
+    // TODO: Make this not hello
     int hello = RegisterClass(&windowClass);
-
-    // Initialize BackBuffer
-    Win32ResizeDIBSection(&globalBackBuffer, 1000, 600);
 
     HWND windowHandle = CreateWindowExA(0,
                                         windowClass.lpszClassName,
@@ -174,8 +172,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                                         0,
                                         hInstance,
                                         0);
+
+    // TODO: Propperly handle this error
     assert(windowHandle);
 
+    // TODO: Propperly handle this error
     assert(timeBeginPeriod(1) == TIMERR_NOERROR);
 
     LARGE_INTEGER performanceFrequency;
@@ -185,15 +186,14 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     LARGE_INTEGER elapsedMiliseconds;
 
     int32 targetFPS = 60;
-    globalRunning = 1;
-    int32 R = 0;
     int64 frameCount = 0;
+
+    globalRunning = 1;
     while (globalRunning)
     {
         QueryPerformanceCounter(&startingTime);
 
         MSG message;
-        BOOL getMessageReturn;
         while (PeekMessage(&message, windowHandle, 0, 0, PM_REMOVE))
         {
             TranslateMessage(&message);
@@ -207,7 +207,6 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         offscreenBuffer.memory = globalBackBuffer.memory;
         offscreenBuffer.stride =
             offscreenBuffer.width * offscreenBuffer.height * offscreenBuffer.bytesPerPixel;
-
         UpdateAndRender(&offscreenBuffer, frameCount);
         frameCount++;
 
@@ -216,18 +215,9 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         ReleaseDC(windowHandle, hdc);
 
         QueryPerformanceCounter(&endTime);
-
         real32 secondsElapsed = (real32)(endTime.QuadPart - startingTime.QuadPart) /
                                 (real32)performanceFrequency.QuadPart;
-
         real32 secondsPerFrame = (1.0f / (real32)targetFPS);
-
-        {
-            char textBuffer[255];
-            DWORD msToSleep = (DWORD)((secondsPerFrame - secondsElapsed )* 1000.0f);
-            sprintf_s(textBuffer, sizeof(textBuffer), "msToSleep : %u\n", msToSleep);
-            OutputDebugString(textBuffer);
-        }
 
         if (secondsElapsed < secondsPerFrame)
         {
@@ -240,6 +230,23 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         else
         {
             OutputDebugString("Missed Framerate");
+        }
+
+        LARGE_INTEGER totalEndTime;
+        QueryPerformanceCounter(&totalEndTime);
+
+        {
+            char textBuffer[255];
+            real32 msToSleep = (secondsPerFrame - secondsElapsed) * 1000.0f;
+            real32 totalFrameMs = ((real32)(totalEndTime.QuadPart - startingTime.QuadPart) /
+                                   (real32)performanceFrequency.QuadPart) *
+                                  1000.0f;
+            sprintf_s(textBuffer,
+                      sizeof(textBuffer),
+                      "msToSleep : %f ; totalFrameTime : %f\n",
+                      msToSleep,
+                      totalFrameMs);
+            OutputDebugString(textBuffer);
         }
     }
 };
