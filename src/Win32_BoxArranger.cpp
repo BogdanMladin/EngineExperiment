@@ -109,6 +109,10 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
 
     switch (message)
     {
+    case WM_SIZE: {
+        break;
+    }
+
     case WM_PAINT: {
 
         PAINTSTRUCT ps;
@@ -123,11 +127,19 @@ LRESULT CALLBACK WindowProcedure(HWND windowHandle, UINT message, WPARAM wParam,
         EndPaint(windowHandle, &ps);
         break;
     }
-    case WM_CLOSE:
+    case WM_CLOSE: {
         globalRunning = false;
+        break;
+    }
+    case WM_DESTROY: {
+        globalRunning = false;
+        break;
+    }
 
-    default:
+    default: {
         result = DefWindowProc(windowHandle, message, wParam, lParam);
+        break;
+    }
     }
 
     return result;
@@ -169,7 +181,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     LARGE_INTEGER performanceFrequency;
     QueryPerformanceFrequency(&performanceFrequency); // given in ticks per second
     LARGE_INTEGER startingTime;
-    LARGE_INTEGER endingTime;
+    LARGE_INTEGER endTime;
     LARGE_INTEGER elapsedMiliseconds;
 
     int32 targetFPS = 60;
@@ -203,20 +215,31 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
         ReleaseDC(windowHandle, hdc);
 
-        QueryPerformanceCounter(&endingTime);
+        QueryPerformanceCounter(&endTime);
 
-        elapsedMiliseconds.QuadPart *=
-            1000; // to turn it to miliseconds, done before to preserve accuracy
-        elapsedMiliseconds.QuadPart =
-            (endingTime.QuadPart - startingTime.QuadPart) / performanceFrequency.QuadPart;
+        real32 secondsElapsed = (real32)(endTime.QuadPart - startingTime.QuadPart) /
+                                (real32)performanceFrequency.QuadPart;
 
-        real32 msPerFrame = (1.0f / (real32)targetFPS) * 1000.0f;
-        int32 msToSleep = RoundReal32ToInt32(msPerFrame - elapsedMiliseconds.QuadPart);
+        real32 secondsPerFrame = (1.0f / (real32)targetFPS);
 
-        char textBuffer[255];
-        sprintf_s(textBuffer, sizeof(textBuffer), "msToSleep : %d\n", msToSleep);
-        OutputDebugString(textBuffer);
+        {
+            char textBuffer[255];
+            DWORD msToSleep = (DWORD)((secondsPerFrame - secondsElapsed )* 1000.0f);
+            sprintf_s(textBuffer, sizeof(textBuffer), "msToSleep : %u\n", msToSleep);
+            OutputDebugString(textBuffer);
+        }
 
-        Sleep(msToSleep);
+        if (secondsElapsed < secondsPerFrame)
+        {
+            DWORD msToSleep = (DWORD)((secondsPerFrame - secondsElapsed) * 1000.0f);
+            if (msToSleep > 0)
+            {
+                Sleep(msToSleep);
+            }
+        }
+        else
+        {
+            OutputDebugString("Missed Framerate");
+        }
     }
 };
