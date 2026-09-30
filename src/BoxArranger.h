@@ -23,11 +23,53 @@ typedef uint64_t uint64;
 typedef float real32;
 typedef double real64;
 
-typedef struct offscreen_buffer{
+#define Kilobytes(Value) ((Value) * 1024LL)
+#define Megabytes(Value) (Kilobytes(Value) * 1024LL)
+#define Gigabytes(Value) (Megabytes(Value) * 1024LL)
+#define Terabytes(Value) (Gigabytes(Value) * 1024LL)
+
+typedef struct offscreen_buffer
+{
     void *memory;
     int32 width;
     int32 height;
     int32 bytesPerPixel;
     int32 stride;
+} offscreen_buffer;
+
+typedef struct game_button_state
+{
+    int32 halfTransitionCount;
+    bool32 endedDown;
+} game_button_state;
+
+typedef struct game_input
+{
+    union {
+        game_button_state buttons[4];
+        struct
+        {
+            game_button_state up;
+            game_button_state down;
+            game_button_state left;
+            game_button_state right;
+        };
+    };
+
+    real32 dTForFrame;
+} game_input;
+
+typedef struct game_memory{
     
-}offscreen_buffer;
+    uint64 permanentStorageSize;
+    void *permanentStorage;
+
+    bool32 isInitialized;
+    
+} game_memory;
+
+typedef struct game_state{
+    real32 playerX;
+    real32 playerY;
+    
+}game_state;

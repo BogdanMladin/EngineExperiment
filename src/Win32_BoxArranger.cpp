@@ -3,8 +3,8 @@
 //  and why it crashes if I hold it grabbed for too long
 
 // clang-format off
-#include <windows.h>
 #include <stdio.h>
+#include <windows.h>
 #include <synchapi.h>
 #include <profileapi.h>
 #include <timeapi.h>
@@ -49,6 +49,12 @@ internal void Win32ColorWholebuffer(win32_offscreeen_buffer *buffer,
         pixelByte->rgbBlue = blue;
         pixelByte++;
     }
+}
+
+internal inline void Win32ProcessMessageInfo(bool32 isDown, game_button_state *gameButton)
+{
+    gameButton->endedDown = isDown;
+    gameButton->halfTransitionCount++;
 }
 
 internal void Win32DisplayBufferInWindow(HDC hdc, win32_offscreeen_buffer *buffer)
@@ -185,19 +191,88 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
     LARGE_INTEGER endTime;
     LARGE_INTEGER elapsedMiliseconds;
 
+    game_memory gameMemory = {};
+    gameMemory.permanentStorageSize = Megabytes(100);
+    gameMemory.permanentStorage =
+        VirtualAlloc(0, gameMemory.permanentStorageSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
     int32 targetFPS = 60;
     int64 frameCount = 0;
+    game_input gameInput = {};
 
     globalRunning = 1;
     while (globalRunning)
     {
         QueryPerformanceCounter(&startingTime);
 
+        gameInput.dTForFrame = 1.0f / targetFPS;
+
+        for (int i = 0; i < ArrayCount(gameInput.buttons); i++)
+        {
+            gameInput.buttons[i].halfTransitionCount = 0;
+        }
         MSG message;
         while (PeekMessage(&message, windowHandle, 0, 0, PM_REMOVE))
         {
-            TranslateMessage(&message);
-            DispatchMessage(&message); // this internally calls the correct window procedure
+            switch (message.message)
+            {
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP: {
+
+                // TODO: This is not easy to read
+                LPARAM lParam = message.lParam;
+                bool32 isDown = ((lParam & (1 << 31)) == 0);
+                bool32 wasDown = ((lParam & (1 << 30)) != 0);
+
+                if (isDown != wasDown)
+                {
+                    OutputDebugString("passed\n");
+
+                    if (message.wParam == 'W')
+                    {
+                        Win32ProcessMessageInfo(isDown, &gameInput.up);
+                    }
+                    if (message.wParam == 'A')
+                    {
+                        Win32ProcessMessageInfo(isDown, &gameInput.left);
+                    }
+                    if (message.wParam == 'S')
+                    {
+                        Win32ProcessMessageInfo(isDown, &gameInput.down);
+                    }
+                    if (message.wParam == 'D')
+                    {
+                        Win32ProcessMessageInfo(isDown, &gameInput.right);
+                    }
+
+                    if (message.wParam == 'Q')
+                    {
+                        globalRunning = false;
+                    }
+
+                }
+            }
+            default:
+                TranslateMessage(&message);
+                DispatchMessage(&message); // this internally calls the correct window procedure
+            }
+        }
+
+        {
+            OutputDebugString("=====\n");
+            for (int i = 0; i < 4; i++)
+            {
+                char textBuffer[255];
+                sprintf_s(textBuffer,
+                          sizeof(textBuffer),
+                          "endedDown: %d ; halfTransitionCount: %d\n",
+                          gameInput.buttons[i].endedDown,
+                          gameInput.buttons[i].halfTransitionCount);
+                OutputDebugString(textBuffer);
+            }
+            OutputDebugString("=====\n");
         }
 
         offscreen_buffer offscreenBuffer = {};
@@ -205,11 +280,11 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         offscreenBuffer.height = globalBackBuffer.height;
         offscreenBuffer.bytesPerPixel = globalBackBuffer.bytesPerPixel;
         offscreenBuffer.memory = globalBackBuffer.memory;
-        offscreenBuffer.stride =
-            offscreenBuffer.width * offscreenBuffer.height * offscreenBuffer.bytesPerPixel;
-        UpdateAndRender(&offscreenBuffer, frameCount);
+        offscreenBuffer.stride = offscreenBuffer.width * offscreenBuffer.bytesPerPixel;
+        UpdateAndRender(&offscreenBuffer, &gameInput, frameCount, &gameMemory);
         frameCount++;
 
+        // TODO: maybe get our own DC that we can keep for the whole program
         HDC hdc = GetDC(windowHandle);
         Win32DisplayBufferInWindow(hdc, &globalBackBuffer);
         ReleaseDC(windowHandle, hdc);
@@ -235,6 +310,7 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
         LARGE_INTEGER totalEndTime;
         QueryPerformanceCounter(&totalEndTime);
 
+        // #if 0
         {
             char textBuffer[255];
             real32 msToSleep = (secondsPerFrame - secondsElapsed) * 1000.0f;
@@ -243,10 +319,13 @@ int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int n
                                   1000.0f;
             sprintf_s(textBuffer,
                       sizeof(textBuffer),
-                      "msToSleep : %f ; totalFrameTime : %f\n",
+                      "MsElapsed: %f ; msToSleep : %f ; actuallySlept: %d ; totalFrameTime : %f\n",
+                      secondsElapsed * 1000.0f,
                       msToSleep,
+                      (DWORD)((secondsPerFrame - secondsElapsed) * 1000.0f),
                       totalFrameMs);
             OutputDebugString(textBuffer);
         }
+        // #endif
     }
 };
