@@ -1,4 +1,4 @@
 cd build
-Win32_BoxArranger.exe
+Win32_Paladin.exe
 cd ..
 

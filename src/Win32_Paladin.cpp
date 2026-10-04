@@ -1,3 +1,9 @@
+/**
+@file Win32_Paladin.cpp
+@brief brief for the file.
+
+Longer for the file.
+*/
 
 // TODO: Figure out why it stops working when I grab the window
 //  and why it crashes if I hold it grabbed for too long
@@ -20,7 +26,7 @@
 #include <cassert>
 // clang-format on
 
-#include "BoxArranger.cpp"
+#include "Paladin.cpp"
 
 global_variable int32 globalRunning;
 

@@ -1,3 +1,9 @@
+/**
+@file Paladin.h
+@brief brief for the file.
+
+Longer for the file.
+*/
 
 #include <cassert>
 #include <math.h>

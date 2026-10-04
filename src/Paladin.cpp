@@ -1,8 +1,21 @@
-#include "BoxArranger.h"
+/**
+@file Paladin.cpp
+@brief brief for the file.
+
+Longer for the file.
+*/
+
+
+#include "Paladin.h"
 
 #define ArrayCount(array) (sizeof(array) / sizeof(array[1]))
 
-internal int32 StrLen(const char *s)
+/**
+this is an amazing documentation.
+for this amazing function. Look at it, it's so simple and elegeant.
+
+*/
+int32 StrLen(const char *s)
 {
     int32 result = 0;
     while (*s)
